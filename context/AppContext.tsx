@@ -1,4 +1,7 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth } from '../firebase';
 import { AppState, Subject, ClassSession, AttendanceRecord, Term, DayOfWeek, NotificationSettings, ExtraClass } from '../types';
 
 const INITIAL_STATE: AppState = {
@@ -17,6 +20,8 @@ const INITIAL_STATE: AppState = {
 };
 
 interface AppContextType extends AppState {
+  firebaseUser: User | null;
+  authLoading: boolean;
   setUser: (name: string, type: 'College' | 'School') => void;
   setTerm: (term: Term) => void;
   addSubject: (subject: Subject) => void;
@@ -35,81 +40,52 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Firebase Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      setAuthLoading(false);
+      if (!user) {
+        // When user logs out, reset everything
+        localStorage.removeItem('attendIQ_data');
+        setState(INITIAL_STATE);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Load from LocalStorage
   useEffect(() => {
-    const stored = localStorage.getItem('attendIQ_data');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Ensure notificationSettings exists for older saves
-        if (!parsed.notificationSettings) {
-          parsed.notificationSettings = INITIAL_STATE.notificationSettings;
+    if (firebaseUser) { // Only load data if a user is logged in
+      const stored = localStorage.getItem('attendIQ_data');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (!parsed.notificationSettings) {
+            parsed.notificationSettings = INITIAL_STATE.notificationSettings;
+          }
+          if (!parsed.extraClasses) {
+            parsed.extraClasses = [];
+          }
+          setState(parsed);
+        } catch (e) {
+          console.error("Failed to parse stored data", e);
         }
-        // Ensure extraClasses exists for older saves
-        if (!parsed.extraClasses) {
-          parsed.extraClasses = [];
-        }
-        setState(parsed);
-      } catch (e) {
-        console.error("Failed to parse stored data", e);
       }
     }
     setIsLoaded(true);
-  }, []);
+  }, [firebaseUser]);
 
   // Save to LocalStorage
   useEffect(() => {
-    if (isLoaded) {
+    if (isLoaded && firebaseUser) { // Only save if loaded and a user is present
       localStorage.setItem('attendIQ_data', JSON.stringify(state));
     }
-  }, [state, isLoaded]);
-
-  // Notification Timer Logic
-  useEffect(() => {
-    if (!state.notificationSettings.enabled) return;
-
-    const checkAndNotify = () => {
-       const now = new Date();
-       const [targetHour, targetMinute] = state.notificationSettings.time.split(':').map(Number);
-       
-       const targetTime = new Date();
-       targetTime.setHours(targetHour, targetMinute, 0, 0);
-
-       const todayStr = now.toISOString().split('T')[0];
-       const { lastNotifiedDate } = state.notificationSettings;
-
-       // If now is past target time AND we haven't notified today
-       if (now >= targetTime && lastNotifiedDate !== todayStr) {
-          if (Notification.permission === 'granted') {
-             try {
-                new Notification("AttendIQ Reminder", {
-                   body: "Time to log your attendance for the day! Keep your streak alive.",
-                   icon: "/vite.svg" // Browser usually handles this relative path
-                });
-             } catch (e) {
-                console.error("Notification failed", e);
-             }
-             
-             // Update state to prevent multiple notifications today
-             setState(prev => ({
-                ...prev,
-                notificationSettings: {
-                   ...prev.notificationSettings,
-                   lastNotifiedDate: todayStr
-                }
-             }));
-          }
-       }
-    };
-
-    // Check immediately and then every minute
-    checkAndNotify();
-    const timer = setInterval(checkAndNotify, 60000); 
-
-    return () => clearInterval(timer);
-  }, [state.notificationSettings]);
-
+  }, [state, isLoaded, firebaseUser]);
+  
   const setUser = (name: string, type: 'College' | 'School') => {
     setState(prev => ({ ...prev, user: { name, type } }));
   };
@@ -126,7 +102,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setState(prev => ({ 
       ...prev, 
       subjects: prev.subjects.filter(s => s.id !== id),
-      schedule: prev.schedule.filter(s => s.subjectId !== id) // Cascade delete
+      schedule: prev.schedule.filter(s => s.subjectId !== id)
     }));
   };
 
@@ -147,7 +123,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const markAttendance = (record: AttendanceRecord) => {
     setState(prev => {
-      // Update logs
       const existingIndex = prev.attendanceLogs.findIndex(
         l => l.date === record.date && l.sessionId === record.sessionId
       );
@@ -167,8 +142,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }
 
   const resetData = () => {
-    localStorage.removeItem('attendIQ_data');
-    window.location.reload();
+    // This will be handled by the auth listener on signout
+    auth.signOut();
   };
 
   const updateNotificationSettings = (settings: Partial<NotificationSettings>) => {
@@ -178,11 +153,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
   };
 
-  if (!isLoaded) return null;
+  if (authLoading || !isLoaded) {
+    // Render a blank screen or a loader while auth state is being determined
+    return <div className="min-h-screen bg-void" />;
+  }
 
   return (
     <AppContext.Provider value={{ 
       ...state, 
+      firebaseUser,
+      authLoading,
       setUser, 
       setTerm, 
       addSubject, 
