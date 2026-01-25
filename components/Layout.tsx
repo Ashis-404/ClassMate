@@ -1,11 +1,25 @@
 import React from 'react';
-import { useLocation, Link } from 'react-router-dom';
-import { Home, Calendar, PieChart, Settings, PlusCircle } from 'lucide-react';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { Home, Calendar, PieChart, Settings, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { auth } from '../firebase';
+import { signOut } from 'firebase/auth';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
-  const isAuthPage = location.pathname === '/' || location.pathname === '/onboarding';
+  const navigate = useNavigate();
+  const user = auth.currentUser;
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate('/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
+  const isAuthPage = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/onboarding';
 
   if (isAuthPage) {
     return <div className="min-h-screen bg-void text-white overflow-hidden">{children}</div>;
@@ -25,6 +39,23 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-neon-purple/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] bg-neon-cyan/10 rounded-full blur-[100px]" />
       </div>
+
+      <header className="relative z-20 p-4 max-w-2xl mx-auto flex justify-between items-center">
+        <div>
+          {user && (
+            <p className="text-sm text-gray-400">
+              Signed in as <span className="font-medium text-neon-cyan">{user.email}</span>
+            </p>
+          )}
+        </div>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors"
+        >
+          <LogOut size={16} />
+          <span className="text-sm font-medium">Logout</span>
+        </button>
+      </header>
 
       <motion.main 
         initial={{ opacity: 0, y: 10 }}

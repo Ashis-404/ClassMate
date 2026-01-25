@@ -1,31 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
+
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Sparkles, TrendingUp, ShieldCheck, GraduationCap, School } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { ArrowRight, Sparkles, TrendingUp, ShieldCheck } from 'lucide-react';
 
 export const Landing: React.FC = () => {
-  const navigate = useNavigate();
-  const { setUser, user, isOnboarded } = useApp();
-  const [inputName, setInputName] = useState('');
-  const [studentType, setStudentType] = useState<'College' | 'School'>('College');
-
-  const handleStart = () => {
-    if (inputName.trim()) {
-      setUser(inputName, studentType);
-      if (isOnboarded) {
-        navigate('/dashboard');
-      } else {
-        navigate('/onboarding');
-      }
-    }
-  };
-
-  // Redirect if already logged in and onboarded
-  React.useEffect(() => {
-    if (user && isOnboarded) navigate('/dashboard');
-  }, [user, isOnboarded, navigate]);
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative">
        {/* Background Effects */}
@@ -73,40 +52,16 @@ export const Landing: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="bg-surface-light/50 p-4 rounded-3xl border border-white/10 backdrop-blur-lg mt-8 space-y-4"
+          className="mt-8 space-y-4 text-center"
         >
-          {/* User Type Selector */}
-          <div className="flex bg-surface rounded-xl p-1 border border-white/5">
-            <button 
-              onClick={() => setStudentType('College')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${studentType === 'College' ? 'bg-white/10 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              <GraduationCap size={16} /> College
+          <Link to="/signup">
+            <button className="w-full bg-gradient-to-r from-neon-purple to-neon-pink text-white rounded-lg px-8 py-4 font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-neon-purple/20">
+              Get Started <ArrowRight size={16} />
             </button>
-            <button 
-              onClick={() => setStudentType('School')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${studentType === 'School' ? 'bg-white/10 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              <School size={16} /> School
-            </button>
-          </div>
-
-          <div className="relative flex items-center">
-            <input 
-              type="text" 
-              placeholder="Enter your name..." 
-              value={inputName}
-              onChange={(e) => setInputName(e.target.value)}
-              className="w-full bg-surface border border-white/10 rounded-xl text-white px-6 py-4 outline-none placeholder:text-gray-600 font-medium focus:border-neon-purple transition-colors"
-            />
-            <button 
-              onClick={handleStart}
-              disabled={!inputName.trim()}
-              className="absolute right-2 top-2 bottom-2 bg-gradient-to-r from-neon-purple to-neon-pink text-white rounded-lg px-6 font-bold flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-neon-purple/20"
-            >
-              Go <ArrowRight size={16} />
-            </button>
-          </div>
+          </Link>
+          <p className="text-gray-500 text-sm">
+            Already have an account? <Link to="/login" className="text-neon-cyan hover:underline">Login</Link>
+          </p>
         </motion.div>
       </div>
     </div>
