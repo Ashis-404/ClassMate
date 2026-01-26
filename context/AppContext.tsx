@@ -1,7 +1,7 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, fetchUserData, saveUserData } from '../firebase';
 import { AppState, Subject, ClassSession, AttendanceRecord, Term, DayOfWeek, NotificationSettings, ExtraClass } from '../types';
 
 const INITIAL_STATE: AppState = {
@@ -57,33 +57,74 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => unsubscribe();
   }, []);
 
-  // Load from LocalStorage
+  // Load from Firestore (fallback to LocalStorage)
+  const saveTimeoutRef = useRef<any>(null);
+
   useEffect(() => {
-    if (firebaseUser) { // Only load data if a user is logged in
-      const stored = localStorage.getItem('attendIQ_data');
-      if (stored) {
+    let cancelled = false;
+    const load = async () => {
+      if (firebaseUser) {
         try {
-          const parsed = JSON.parse(stored);
-          if (!parsed.notificationSettings) {
-            parsed.notificationSettings = INITIAL_STATE.notificationSettings;
+          const remote = await fetchUserData(firebaseUser.uid);
+          if (!cancelled && remote) {
+            if (!remote.notificationSettings) remote.notificationSettings = INITIAL_STATE.notificationSettings;
+            if (!remote.extraClasses) remote.extraClasses = [];
+            setState(remote);
+            localStorage.setItem('attendIQ_data', JSON.stringify(remote));
+          } else if (!cancelled) {
+            const stored = localStorage.getItem('attendIQ_data');
+            if (stored) {
+              try {
+                const parsed = JSON.parse(stored);
+                if (!parsed.notificationSettings) parsed.notificationSettings = INITIAL_STATE.notificationSettings;
+                if (!parsed.extraClasses) parsed.extraClasses = [];
+                setState(parsed);
+              } catch (e) {
+                console.error('Failed to parse stored data', e);
+                setState(INITIAL_STATE);
+              }
+            } else {
+              setState(INITIAL_STATE);
+            }
           }
-          if (!parsed.extraClasses) {
-            parsed.extraClasses = [];
-          }
-          setState(parsed);
         } catch (e) {
-          console.error("Failed to parse stored data", e);
+          console.error('Error fetching remote user data', e);
+          const stored = localStorage.getItem('attendIQ_data');
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              if (!parsed.notificationSettings) parsed.notificationSettings = INITIAL_STATE.notificationSettings;
+              if (!parsed.extraClasses) parsed.extraClasses = [];
+              setState(parsed);
+            } catch (err) {
+              console.error('Failed to parse stored data', err);
+              setState(INITIAL_STATE);
+            }
+          } else {
+            setState(INITIAL_STATE);
+          }
         }
+      } else {
+        setState(INITIAL_STATE);
       }
-    }
-    setIsLoaded(true);
+      if (!cancelled) setIsLoaded(true);
+    };
+    load();
+    return () => { cancelled = true; };
   }, [firebaseUser]);
 
-  // Save to LocalStorage
+  // Save to LocalStorage and Firestore (debounced)
   useEffect(() => {
     if (isLoaded && firebaseUser) { // Only save if loaded and a user is present
       localStorage.setItem('attendIQ_data', JSON.stringify(state));
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        saveUserData(firebaseUser.uid, state).catch((e) => console.error('Failed to save user data', e));
+      }, 1000);
     }
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
   }, [state, isLoaded, firebaseUser]);
   
   const setUser = (name: string, type: 'College' | 'School') => {

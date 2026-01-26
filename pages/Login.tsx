@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, signInWithGoogle } from '../firebase';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
@@ -22,6 +22,16 @@ const Login: React.FC = () => {
       navigate('/Onboarding');
     } catch (error: any) {
       setError(error.message);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    try {
+      await signInWithGoogle();
+      navigate('/Onboarding');
+    } catch (error: any) {
+      setError(error.message || 'Google sign-in failed');
     }
   };
 
@@ -127,6 +137,23 @@ const Login: React.FC = () => {
               Login
             </motion.button>
           </motion.form>
+
+          {/* Google Sign-in */}
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-white/6 border border-white/8 rounded-xl text-white hover:bg-white/8 transition-all duration-200"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 533.5 544.3" xmlns="http://www.w3.org/2000/svg">
+                <path d="M533.5 278.4c0-18.5-1.5-37-4.7-54.6H272v103.5h147.6c-6.4 34.5-25.7 63.8-54.8 83.3v69.3h88.5c51.7-47.6 81.2-117.7 81.2-201.5z" fill="#4285f4"/>
+                <path d="M272 544.3c73.7 0 135.6-24.3 180.8-66.1l-88.5-69.3c-24.6 16.5-56 26.2-92.3 26.2-71 0-131.2-47.8-152.6-111.9H28.1v70.4C73.2 487.6 166 544.3 272 544.3z" fill="#34a853"/>
+                <path d="M119.4 326.9c-11.4-33.9-11.4-70.6 0-104.5V152h-91.3C8 219.2 0 246.4 0 272s8 52.8 28.1 120l91.3-65.1z" fill="#fbbc04"/>
+                <path d="M272 107.7c39.9 0 75.8 13.7 104 40.6l78-78C406.2 24.9 344.3 0 272 0 166 0 73.2 56.7 28.1 152l91.3 70.4C140.8 155.5 201 107.7 272 107.7z" fill="#ea4335"/>
+              </svg>
+              Continue with Google
+            </button>
+          </div>
 
           {error && (
             <motion.p
