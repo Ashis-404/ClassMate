@@ -26,23 +26,30 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] bg-neon-cyan/10 rounded-full blur-[100px]" />
       </div>
 
-      <header className="relative z-20 p-4 max-w-2xl mx-auto flex justify-between items-center">
-        <div>
-          {firebaseUser && (
-            <p className="text-sm text-gray-400">
-              Signed in as <span className="font-medium text-neon-cyan">{firebaseUser.email}</span>
-            </p>
-          )}
+      <header className="relative z-20 p-4 max-w-2xl mx-auto flex justify-center items-center">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-neon-purple to-neon-cyan p-0.5">
+            <div className="w-full h-full rounded-full bg-surface flex items-center justify-center">
+              <img src="/logos/ClassMate.png" alt="ClassMate" className="w-5 h-5 object-contain" />
+            </div>
+          </div>
+          <motion.h1
+            className="text-lg font-bold bg-gradient-to-r from-neon-purple via-neon-cyan to-neon-pink bg-clip-text text-transparent font-['JetBrains_Mono'] tracking-wide"
+            animate={{
+              backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+            }}
+            transition={{
+              duration: 3,
+              ease: "linear",
+              repeat: Infinity,
+            }}
+            style={{
+              backgroundSize: "200% 200%",
+            }}
+          >
+            ClassMate
+          </motion.h1>
         </div>
-        <motion.button
-          onClick={handleLogout}
-          whileHover={{ scale: 1.05, boxShadow: "0px 0px 12px rgba(168, 85, 247, 0.3)" }}
-          whileTap={{ scale: 0.95 }}
-          className="flex items-center gap-2 text-gray-300 bg-surface/50 border border-white/10 rounded-full px-4 py-2 text-sm font-medium transition-colors hover:text-white hover:border-white/20"
-        >
-          <LogOut size={16} />
-          <span>Logout</span>
-        </motion.button>
       </header>
 
       <motion.main 

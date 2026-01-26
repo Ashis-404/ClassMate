@@ -163,6 +163,24 @@ export const Settings: React.FC = () => {
         </div>
       </div>
 
+      {/* Account Section */}
+      <div className="space-y-4">
+         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Account</h3>
+         <div className="space-y-3">
+          <button onClick={() => {
+            if (confirm("Are you sure you want to sign out?")) {
+              resetData();
+            }
+          }} className="w-full flex items-center gap-4 p-4 bg-surface rounded-xl border border-white/5 text-left hover:bg-danger/10 group transition-colors">
+            <div className="p-2 bg-danger/10 rounded-lg text-danger group-hover:bg-danger group-hover:text-white transition-colors"><LogOut size={20}/></div>
+            <div className="flex-1">
+              <div className="font-bold text-sm text-danger group-hover:text-white">Sign Out</div>
+              <div className="text-xs text-gray-500 group-hover:text-gray-300">Log out of your account</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
       <div className="text-center text-xs text-gray-600 mt-12 font-mono">
         AttendIQ v1.1.0<br/>
         Attendance Intelligence System

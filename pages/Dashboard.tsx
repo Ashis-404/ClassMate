@@ -5,6 +5,8 @@ import { Check, X, Settings2, Plus, Undo2, CalendarX, Clock } from 'lucide-react
 import { DayOfWeek, SubjectType } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import Calendar from '../components/Calendar';
+import WeekCalendar from '../components/WeekCalendar';
+import LightRays from '../components/LightRays';
 
 // Helper to get duration in hours
 const getDurationInHours = (start: string, end: string) => {
@@ -177,8 +179,27 @@ export const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 relative">
-      <div className="flex justify-between items-end">
+    <div className="space-y-8 relative min-h-screen">
+      {/* Animated Light Rays Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <LightRays
+          raysOrigin="top-center"
+          raysColor="#d0169e"
+          raysSpeed={1.5}
+          lightSpread={1.5}
+          rayLength={3}
+          followMouse={true}
+          mouseInfluence={0.3}
+          noiseAmount={0.25}
+          distortion={0.1}
+          className="custom-rays"
+          pulsating={false}
+          fadeDistance={1.5}
+          saturation={3}
+        />
+      </div>
+
+      <div className="flex justify-between items-end relative z-10">
         <div>
           <h1 className="text-2xl font-bold text-white">Hello, {user?.name}</h1>
           <p className="text-gray-400 text-sm">Your Liquid Status</p>
@@ -186,7 +207,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Floating Liquid Bubbles Section */}
-      <div className="relative h-72 w-full flex justify-center items-center mt-2 mb-10">
+      <div className="relative h-72 w-full flex justify-center items-center -mt-4 mb-6">
         
         {/* Animated Connectors */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" overflow="visible">
@@ -256,7 +277,7 @@ export const Dashboard: React.FC = () => {
         />
       </div>
        <div className="my-8">
-        <Calendar />
+        <WeekCalendar />
       </div>
 
 
