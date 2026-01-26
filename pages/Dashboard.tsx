@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { Check, X, Settings2, Plus, Undo2, CalendarX, Clock } from 'lucide-react';
 import { DayOfWeek, SubjectType } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import Calendar from '../components/Calendar';
 
 // Helper to get duration in hours
 const getDurationInHours = (start: string, end: string) => {
@@ -254,6 +255,10 @@ export const Dashboard: React.FC = () => {
           className="bottom-0 right-4"
         />
       </div>
+       <div className="my-8">
+        <Calendar />
+      </div>
+
 
       {/* Schedule Section */}
       <div className="flex justify-between items-center">
