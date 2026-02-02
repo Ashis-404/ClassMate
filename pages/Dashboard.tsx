@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { Check, X, Settings2, Plus, Undo2, CalendarX, Clock } from 'lucide-react';
@@ -108,6 +108,8 @@ export const Dashboard: React.FC = () => {
   const [newExtraSubject, setNewExtraSubject] = useState('');
   const [newExtraStart, setNewExtraStart] = useState('09:00');
   const [newExtraEnd, setNewExtraEnd] = useState('10:00');
+  const [showExtraSuccess, setShowExtraSuccess] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short' }) as DayOfWeek;
   const dateStr = new Date().toISOString().split('T')[0];
@@ -119,6 +121,16 @@ export const Dashboard: React.FC = () => {
     }));
     return [...standard, ...extras].sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [schedule, extraClasses, today, dateStr]);
+
+  // Prevent background scroll when manage panel/modal is open
+  useEffect(() => {
+    if (isManageOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+    return;
+  }, [isManageOpen]);
 
   const stats = useMemo(() => {
     return subjects.map(sub => {
@@ -168,6 +180,30 @@ export const Dashboard: React.FC = () => {
 
   const handleAddExtraClass = () => {
     if(!newExtraSubject) return;
+    
+    // Check for overlaps with existing extra classes and non-cancelled regular classes
+    const conflictingClasses = todaysClasses.filter(session => {
+      const log = attendanceLogs.find(l => l.date === dateStr && l.sessionId === session.id);
+      const isCancelled = log?.status === 'Cancelled';
+      
+      // Skip if cancelled
+      if (isCancelled) return false;
+      
+      // Check overlap
+      const newStart = parseInt(newExtraStart.split(':')[0]) * 60 + parseInt(newExtraStart.split(':')[1]);
+      const newEnd = parseInt(newExtraEnd.split(':')[0]) * 60 + parseInt(newExtraEnd.split(':')[1]);
+      const sessionStart = parseInt(session.startTime.split(':')[0]) * 60 + parseInt(session.startTime.split(':')[1]);
+      const sessionEnd = parseInt(session.endTime.split(':')[0]) * 60 + parseInt(session.endTime.split(':')[1]);
+      
+      return (newStart < sessionEnd) && (newEnd > sessionStart);
+    });
+    
+    if (conflictingClasses.length > 0) {
+      setActionMessage('Time slot conflicts with existing class');
+      setTimeout(() => setActionMessage(null), 1800);
+      return;
+    }
+    
     addExtraClass({
       id: uuidv4(),
       subjectId: newExtraSubject,
@@ -176,6 +212,12 @@ export const Dashboard: React.FC = () => {
       endTime: newExtraEnd
     });
     setNewExtraSubject('');
+    // reset time fields to sensible defaults
+    setNewExtraStart('09:00');
+    setNewExtraEnd('10:00');
+    setShowExtraSuccess(true);
+    setActionMessage('Extra class added');
+    setTimeout(() => { setShowExtraSuccess(false); setActionMessage(null); }, 1800);
   };
 
   return (
@@ -367,20 +409,22 @@ export const Dashboard: React.FC = () => {
             <motion.div 
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-[#121216] w-full max-w-md rounded-2xl border border-white/10 p-6 z-10 relative max-h-[85vh] flex flex-col"
+              className="bg-[#121216] w-full max-w-md rounded-2xl border border-white/10 p-6 z-10 relative max-h-[85vh] flex flex-col overflow-hidden"
             >
               <div className="flex justify-between items-center mb-6 shrink-0">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2"><Settings2 size={20} className="text-neon-purple"/> Manage Today</h3>
                 <button onClick={() => setIsManageOpen(false)} className="p-2 bg-white/5 rounded-full hover:bg-white/10 text-gray-400"><X size={18} /></button>
               </div>
 
-              <div className="mb-6 shrink-0">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Add Extra Class</h4>
-                <div className="space-y-3">
+              <div className="flex-1 overflow-y-auto flex flex-col gap-6 min-h-0">
+                {/* Add Extra Class Section */}
+                <div className="bg-surface/30 p-4 rounded-xl border border-white/10 shrink-0">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Add Extra Class</h4>
+                  <div className="space-y-3">
                    <select 
                       value={newExtraSubject} 
                       onChange={(e) => setNewExtraSubject(e.target.value)}
-                      className="w-full bg-surface-light border border-white/10 rounded-lg p-3 text-white outline-none focus:border-neon-purple"
+                      className="w-full bg-surface-light border border-white/10 rounded-lg p-3 text-white outline-none focus:border-neon-purple max-h-[200px] overflow-y-auto"
                    >
                      <option value="">Select Subject</option>
                      {subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}
@@ -396,13 +440,17 @@ export const Dashboard: React.FC = () => {
                      </div>
                    </div>
                    <button 
-                      onClick={handleAddExtraClass}
-                      disabled={!newExtraSubject}
-                      className="w-full bg-neon-cyan/10 hover:bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/50 py-3 rounded-lg font-bold text-sm flex justify-center items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                     onClick={handleAddExtraClass}
+                     disabled={!newExtraSubject}
+                     className="w-full bg-neon-cyan/10 hover:bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/50 py-3 rounded-lg font-bold text-sm flex justify-center items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                    >
-                      <Plus size={16} /> Add Class
+                     <Plus size={16} /> Add Class
                    </button>
+                  {showExtraSuccess && (
+                    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="bg-success/20 border border-success/30 text-success px-3 py-2 rounded-lg text-sm text-center">{actionMessage}</motion.div>
+                  )}
                 </div>
+              </div>
               </div>
 
               <div className="shrink-1 min-h-0 flex flex-col">
@@ -420,19 +468,26 @@ export const Dashboard: React.FC = () => {
                                 <div className="text-sm font-bold">{subject?.name}</div>
                                 <div className="text-xs text-gray-500">{session.startTime} - {session.endTime}</div>
                              </div>
-                             <button 
+                              <button 
                                 onClick={() => {
-                                   markAttendance({ id: `${dateStr}-${session.id}`, date: dateStr, sessionId: session.id, status: isCancelled ? 'Absent' : 'Cancelled' });
+                                  const newStatus = isCancelled ? 'Absent' : 'Cancelled';
+                                  markAttendance({ id: `${dateStr}-${session.id}`, date: dateStr, sessionId: session.id, status: newStatus });
+                                  // show message and auto-clear
+                                  setActionMessage(isCancelled ? 'Class restored' : 'Class cancelled');
+                                  setTimeout(() => setActionMessage(null), 1800);
                                 }}
                                 className={`px-3 py-1.5 rounded text-xs font-bold border transition-colors flex items-center gap-1 ${isCancelled ? 'bg-success/10 text-success border-success/30' : 'bg-danger/10 text-danger border-danger/30'}`}
-                             >
+                              >
                                 {isCancelled ? <><Undo2 size={12}/> Restore</> : <><CalendarX size={12}/> Cancel</>}
-                             </button>
+                              </button>
                           </div>
                         )
                      })
                    }
                 </div>
+                    {actionMessage && (
+                      <div className="mt-3 text-sm text-white/90 text-center">{actionMessage}</div>
+                    )}
               </div>
             </motion.div>
           </div>

@@ -9,6 +9,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Planner } from './pages/Planner';
 import { ScheduleView } from './pages/ScheduleView';
 import { Settings } from './pages/Settings';
+import { Profile } from './pages/Profile';
 import { BulkImport } from './pages/BulkImport';
 import { Login } from './pages/Login';
 import { SignUp } from './pages/SignUp';
@@ -71,6 +72,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/planner" element={<Planner />} />
         <Route path="/schedule" element={<ScheduleView />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/bulk-import" element={<BulkImport />} />
       </Route>
 

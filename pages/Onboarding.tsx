@@ -15,6 +15,9 @@ export const Onboarding: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [showSubjectSuccess, setShowSubjectSuccess] = useState(false);
+  const [showSessionSuccess, setShowSessionSuccess] = useState(false);
+  const [institution, setInstitution] = useState('');
 
   // Step 1: User Info
   const [name, setName] = useState('');
@@ -24,6 +27,8 @@ export const Onboarding: React.FC = () => {
   const [termName, setTermName] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [minAttend, setMinAttend] = useState(75);
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('10:00');
 
   // Step 3: Subjects
   const [localSubjects, setLocalSubjects] = useState<Subject[]>([]);
@@ -38,15 +43,26 @@ export const Onboarding: React.FC = () => {
 
   const handleNextStep = () => {
     setError(null);
-    if (step === 1) {
+      if (step === 1) {
       if (!name.trim()) { setError("Please enter your name."); return; }
       if (!userType) { setError("Please select if you are in College or School."); return; }
-      setUser(name, userType);
+      if (!institution.trim()) { setError("Please enter your institution name."); return; }
+      setUser(name, userType, institution.trim());
       // Pre-fill term name based on user type for the next step
       setTermName(userType === 'College' ? 'Semester 1' : 'Class 9');
       setStep(2);
     } else if (step === 2) {
-      if (!termName.trim()) { setError("Please enter a name for your term or class."); return; }
+      if (!termName.trim()) { setError("Please select a valid semester or class."); return; }
+      // Validate format: Sem 1-8 or Class 1-12
+      if (user?.type === 'College') {
+        const m = termName.match(/(\d+)/);
+        const num = m ? parseInt(m[0], 10) : NaN;
+        if (isNaN(num) || num < 1 || num > 8) { setError('Please choose Sem 1 to Sem 8.'); return; }
+      } else {
+        const m = termName.match(/(\d+)/);
+        const num = m ? parseInt(m[0], 10) : NaN;
+        if (isNaN(num) || num < 1 || num > 12) { setError('Please choose Class 1 to Class 12.'); return; }
+      }
       setTerm({
         id: generateId(),
         name: termName,
@@ -91,6 +107,8 @@ export const Onboarding: React.FC = () => {
     setTempSubject('');
     setTempLecturer('');
     setTempCredits(3);
+    setShowSubjectSuccess(true);
+    setTimeout(() => setShowSubjectSuccess(false), 1800);
   };
 
   const isOverlapping = (day: string, newStart: string, newEnd: string) => {
@@ -109,10 +127,18 @@ export const Onboarding: React.FC = () => {
     if (!start || !end) { setError("Please select both a start and end time."); return; }
     if (start >= end) { setError("End time must be after start time."); return; }
     if (isOverlapping(selectedDay, start, end)) { setError(`Time slot clashes with an existing class on ${selectedDay}.`); return; }
+    // Prevent exact duplicate
+    const exists = (scheduleMap[selectedDay] || []).some(s => s.subjectId === subjectId && s.start === start && s.end === end);
+    if (exists) { setError('This session already exists for the selected time.'); return; }
     setScheduleMap(prev => ({
       ...prev,
       [selectedDay]: [...(prev[selectedDay] || []), { subjectId, start, end }].sort((a, b) => a.start.localeCompare(b.start))
     }));
+    // reset time fields
+    setStartTime('09:00');
+    setEndTime('10:00');
+    setShowSessionSuccess(true);
+    setTimeout(() => setShowSessionSuccess(false), 1800);
   };
 
   const removeFromSchedule = (day: string, index: number) => {
@@ -166,17 +192,31 @@ export const Onboarding: React.FC = () => {
                         <span className="font-bold text-lg">College</span>
                     </button>
                  </div>
+                 <div className="mt-4">
+                   <label className="text-sm text-gray-400 uppercase tracking-wider font-bold">Institution name</label>
+                   <input value={institution} onChange={e => setInstitution(e.target.value)} placeholder={userType === 'College' ? 'e.g. National Institute of Tech' : 'e.g. Sunshine High School'} className="w-full bg-surface p-3 rounded-xl border border-white/10 outline-none mt-2" />
+                 </div>
               </div>
             </motion.div>
           )}
 
           {step === 2 && (
             <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-               <div className="space-y-2">
+              <div className="space-y-2">
                 <label className="text-sm text-gray-400 uppercase tracking-wider font-bold">
-                  {user?.type === 'College' ? 'Semester Name' : 'Class / Standard / Grade'}
+                  {user?.type === 'College' ? 'Semester' : 'Class / Standard / Grade'}
                 </label>
-                <input type="text" value={termName} onChange={e => setTermName(e.target.value)} placeholder={user?.type === 'College' ? 'e.g. Semester 5' : 'e.g. Class 12 - Term 1'} className="w-full bg-surface p-4 rounded-xl border border-white/10 outline-none focus:border-neon-purple transition-colors" />
+                {user?.type === 'College' ? (
+                  <select value={termName} onChange={e => setTermName(e.target.value)} className="w-full bg-surface p-4 rounded-xl border border-white/10 outline-none focus:border-neon-purple transition-colors">
+                    <option value="">Select Semester</option>
+                    {Array.from({ length: 8 }).map((_, i) => <option key={i} value={`Sem ${i + 1}`}>{`Sem ${i + 1}`}</option>)}
+                  </select>
+                ) : (
+                  <select value={termName} onChange={e => setTermName(e.target.value)} className="w-full bg-surface p-4 rounded-xl border border-white/10 outline-none focus:border-neon-cyan transition-colors">
+                    <option value="">Select Class</option>
+                    {Array.from({ length: 12 }).map((_, i) => <option key={i} value={`Class ${i + 1}`}>{`Class ${i + 1}`}</option>)}
+                  </select>
+                )}
               </div>
               <div className="space-y-2">
                 <label className="text-sm text-gray-400 uppercase tracking-wider font-bold">Start Date</label>
@@ -185,7 +225,7 @@ export const Onboarding: React.FC = () => {
               <div className="space-y-2">
                 <label className="text-sm text-gray-400 uppercase tracking-wider font-bold">Minimum Attendance Target (%)</label>
                 <div className="flex items-center gap-4">
-                  <input type="range" min="50" max="100" value={minAttend} onChange={e => setMinAttend(Number(e.target.value))} className="w-full accent-neon-purple" />
+                  <input type="range" min="50" max="100" step={5} value={minAttend} onChange={e => setMinAttend(Number(e.target.value))} className="w-full accent-neon-purple" />
                   <span className="text-2xl font-mono text-neon-purple">{minAttend}%</span>
                 </div>
               </div>
@@ -225,9 +265,36 @@ export const Onboarding: React.FC = () => {
                     <input type="text" placeholder={user?.type === 'College' ? "e.g. Dr. Smith" : "e.g. Mr. Johnson"} value={tempLecturer} onChange={e => setTempLecturer(e.target.value)} className="flex-1 bg-transparent py-3 outline-none" />
                   </div>
                 </div>
-                <button onClick={addLocalSubject} className="w-full bg-gradient-to-r from-neon-purple to-neon-pink p-3 rounded-xl text-white font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg shadow-neon-purple/20"><Plus size={20} /> Add Subject</button>
+                <div className="relative">
+                  <button onClick={addLocalSubject} className="w-full bg-gradient-to-r from-neon-purple to-neon-pink p-3 rounded-xl text-white font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg shadow-neon-purple/20"><Plus size={20} /> Add Subject</button>
+                  {showSubjectSuccess && (
+                    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute -top-10 right-0 bg-success/20 border border-success/30 text-success px-3 py-2 rounded-lg text-sm">Subject added</motion.div>
+                  )}
+                </div>
               </div>
-              <div className="space-y-2 mt-4"> {localSubjects.length === 0 && (<p className="text-gray-500 text-center italic mt-10">No subjects added yet.</p>)} {localSubjects.map(sub => (<motion.div layout key={sub.id} className="flex justify-between items-center bg-surface p-4 rounded-xl border border-white/5"> <div><p className="font-semibold text-lg">{sub.name}</p><div className="flex flex-wrap gap-2 mt-1"><span className="text-[10px] uppercase font-bold bg-white/5 px-2 py-1 rounded text-neon-cyan">{sub.type}</span> {user?.type === 'College' && sub.credits !== undefined && <span className="text-[10px] uppercase font-bold bg-white/5 px-2 py-1 rounded text-neon-purple">{sub.credits} Credits</span>} {sub.lecturer && <span className="text-[10px] font-medium text-gray-500 flex items-center gap-1"><User size={10}/> {sub.lecturer}</span>}</div></div> <button onClick={() => setLocalSubjects(localSubjects.filter(s => s.id !== sub.id))} className="text-danger p-2 hover:bg-danger/10 rounded-lg transition-colors"><Trash2 size={18} /></button></motion.div>))}</div>
+              <div className="space-y-2 mt-4">
+                {localSubjects.length === 0 && (
+                  <p className="text-gray-500 text-center italic mt-10">No subjects added yet.</p>
+                )}
+
+                {localSubjects.map(sub => (
+                  <motion.div layout key={sub.id} className="flex justify-between items-center bg-surface p-4 rounded-xl border border-white/5">
+                    <div>
+                      <p className="font-semibold text-lg">{sub.name}</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        <span className="text-[10px] uppercase font-bold bg-white/5 px-2 py-1 rounded text-neon-cyan">{sub.type}</span>
+                        {user?.type === 'College' && sub.credits !== undefined && (
+                          <span className="text-[10px] uppercase font-bold bg-white/5 px-2 py-1 rounded text-neon-purple">{sub.credits} Credits</span>
+                        )}
+                        {sub.lecturer && (
+                          <span className="text-[10px] font-medium text-gray-500 flex items-center gap-1"><User size={10}/> {sub.lecturer}</span>
+                        )}
+                      </div>
+                    </div>
+                    <button onClick={() => setLocalSubjects(localSubjects.filter(s => s.id !== sub.id))} className="bg-danger/10 text-danger p-2 rounded-lg hover:bg-danger/20 transition-colors"><Trash2 size={18} /></button>
+                  </motion.div>
+                ))}
+              </div>
             </motion.div>
           )}
 
@@ -237,24 +304,53 @@ export const Onboarding: React.FC = () => {
               </div>
               <div className="bg-surface/50 p-4 rounded-xl border border-white/10 space-y-4">
                 <p className="text-sm font-medium text-gray-400 flex items-center gap-2"><Clock size={14}/> Add class for {selectedDay}</p>
-                <select id="subject-select" className="w-full bg-surface p-3 rounded-lg border border-white/10 outline-none text-white focus:border-neon-purple transition-colors"> {localSubjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}</select>
+                <select id="subject-select" className="w-full bg-surface p-3 rounded-lg border border-white/10 outline-none text-white focus:border-neon-purple transition-colors">
+                  {localSubjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}
+                </select>
                 <div className="flex gap-2">
-                  <input type="time" id="start-time" defaultValue="09:00" className="bg-surface p-2 rounded-lg border border-white/10 text-white flex-1 focus:border-neon-purple outline-none" />
+                  <input type="time" id="start-time" value={startTime} onChange={e => setStartTime(e.target.value)} className="bg-surface p-2 rounded-lg border border-white/10 text-white flex-1 focus:border-neon-purple outline-none" />
                   <span className="text-gray-500 self-center">to</span>
-                  <input type="time" id="end-time" defaultValue="10:00" className="bg-surface p-2 rounded-lg border border-white/10 text-white flex-1 focus:border-neon-purple outline-none" />
+                  <input type="time" id="end-time" value={endTime} onChange={e => setEndTime(e.target.value)} className="bg-surface p-2 rounded-lg border border-white/10 text-white flex-1 focus:border-neon-purple outline-none" />
                 </div>
-                <button onClick={() => { const select = document.getElementById('subject-select') as HTMLSelectElement; const start = (document.getElementById('start-time') as HTMLInputElement).value; const end = (document.getElementById('end-time') as HTMLInputElement).value; addToSchedule(select.value, start, end);}} className="w-full bg-white/10 hover:bg-white/20 text-white py-2 rounded-lg font-medium transition-colors border border-white/5"> Add Session </button>
+                <div className="relative">
+                  <button onClick={() => { const select = document.getElementById('subject-select') as HTMLSelectElement; addToSchedule(select.value, startTime, endTime);}} className="w-full bg-white/10 hover:bg-white/20 text-white py-2 rounded-lg font-medium transition-colors border border-white/5"> Add Session </button>
+                  {showSessionSuccess && (
+                    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute -top-10 right-0 bg-success/20 border border-success/30 text-success px-3 py-2 rounded-lg text-sm">Session added</motion.div>
+                  )}
+                </div>
               </div>
-              <div className="space-y-2"> {(scheduleMap[selectedDay] || []).length === 0 && (<p className="text-xs text-gray-600 text-center py-4">No classes scheduled for {selectedDay}</p>)} {(scheduleMap[selectedDay] || []).map((sess, idx) => { const sub = localSubjects.find(s => s.id === sess.subjectId); return (<motion.div layout key={idx} className="flex items-center justify-between bg-surface p-3 rounded-lg border-l-2 border-neon-cyan"> <div className="flex items-center gap-4"><div className="text-xs text-gray-500 font-mono w-24 text-center"> {sess.start} - {sess.end}</div><div className="font-medium text-sm">{sub?.name}</div></div><button onClick={() => removeFromSchedule(selectedDay, idx)} className="text-gray-500 hover:text-danger p-2 transition-colors"><Trash2 size={16} /></button></motion.div>); })}</div>
+              <div className="space-y-2">
+                {(scheduleMap[selectedDay] || []).length === 0 && (
+                  <p className="text-xs text-gray-600 text-center py-4">No classes scheduled for {selectedDay}</p>
+                )}
+                {(scheduleMap[selectedDay] || []).map((sess, idx) => {
+                  const sub = localSubjects.find(s => s.id === sess.subjectId);
+                  return (
+                    <motion.div layout key={idx} className="flex items-center justify-between bg-surface p-3 rounded-lg border-l-2 border-neon-cyan">
+                      <div className="flex items-center gap-4">
+                        <div className="text-xs text-gray-500 font-mono w-24 text-center"> {sess.start} - {sess.end}</div>
+                        <div className="font-medium text-sm">{sub?.name}</div>
+                      </div>
+                      <button onClick={() => removeFromSchedule(selectedDay, idx)} className="bg-danger/10 text-danger p-2 rounded hover:bg-danger/20 transition-colors"><Trash2 size={16} /></button>
+                    </motion.div>
+                  );
+                })}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      <div className="fixed bottom-6 right-6 z-20">
-        <button onClick={handleNextStep} className="bg-gradient-to-r from-neon-purple to-neon-pink text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-neon-purple/20 hover:scale-105 transition-transform">
-          {step === 4 ? 'Finish Setup' : 'Next Step'} <ChevronRight size={18} />
-        </button>
+      <div className="fixed bottom-6 left-0 right-0 z-20 px-6">
+        <div className="max-w-2xl mx-auto flex justify-between items-center">
+          {step > 1 ? (
+            <button onClick={() => setStep(prev => Math.max(1, prev - 1))} className="bg-surface/60 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:brightness-105 transition">Back</button>
+          ) : <div />}
+
+          <button onClick={handleNextStep} className="bg-gradient-to-r from-neon-purple to-neon-pink text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-neon-purple/20 hover:scale-105 transition-transform">
+            {step === 4 ? 'Finish Setup' : 'Next Step'} <ChevronRight size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );

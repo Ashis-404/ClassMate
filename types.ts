@@ -57,7 +57,7 @@ export interface NotificationSettings {
 }
 
 export interface AppState {
-  user: { name: string; type: 'College' | 'School' } | null;
+  user: { name: string; type: 'College' | 'School'; institution?: string; profilePicture?: string | null } | null;
   term: Term | null;
   subjects: Subject[];
   schedule: ClassSession[];

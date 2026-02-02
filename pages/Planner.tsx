@@ -1,147 +1,161 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { motion } from 'framer-motion';
-import { BrainCircuit, AlertTriangle, PartyPopper, ArrowUpCircle } from 'lucide-react';
-
-const getDurationInHours = (start: string, end: string) => {
-  const [sh, sm] = start.split(':').map(Number);
-  const [eh, em] = end.split(':').map(Number);
-  const diffMinutes = (eh * 60 + em) - (sh * 60 + sm);
-  return Number((diffMinutes / 60).toFixed(2));
-};
+import { TrendingUp, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export const Planner: React.FC = () => {
-  const { subjects, attendanceLogs, schedule, term } = useApp();
+  const { subjects, attendanceLogs, schedule, term, extraClasses } = useApp();
+  const todayStr = new Date().toISOString().split('T')[0];
 
-  // Core Intelligence Logic
-  const insights = subjects.map(sub => {
-    // Current Stats (Weighted by hours + Bulk Data)
-    const subjectLogs = attendanceLogs.filter(l => {
-       const session = schedule.find(s => s.id === l.sessionId);
-       return session?.subjectId === sub.id;
-    });
+  // Simplified calculation with class-based counting
+  const insights = useMemo(() => {
+    return subjects.map(sub => {
+      // COUNT PAST BULK-IMPORTED DATA
+      const bulkImportAttended = sub.pastAttendedClasses || 0;
+      const bulkImportAbsent = sub.pastAbsentClasses || 0;
+      const bulkImportTotal = bulkImportAttended + bulkImportAbsent;
 
-    // Incorporate Bulk Import Data (Assuming 1 class = 1 hour)
-    let presentHours = sub.pastAttendedClasses || 0;
-    let totalOccurredHours = (sub.pastAttendedClasses || 0) + (sub.pastAbsentClasses || 0);
+      // COUNT CURRENT & TODAY ATTENDANCE LOGS (excluding cancelled)
+      const pastAndTodayLogs = attendanceLogs.filter(l => {
+        const sessionOrExtra = schedule.find(s => s.id === l.sessionId) || extraClasses.find(e => e.id === l.sessionId);
+        const isCurrentOrPast = l.date <= todayStr;
+        return sessionOrExtra?.subjectId === sub.id && isCurrentOrPast && l.status !== 'Cancelled';
+      });
 
-    subjectLogs.forEach(log => {
-      const session = schedule.find(s => s.id === log.sessionId);
-      if (session) {
-        const duration = getDurationInHours(session.startTime, session.endTime);
-        if (log.status === 'Present') presentHours += duration;
-        if (log.status !== 'Cancelled') totalOccurredHours += duration;
+      const currentClassesAttended = pastAndTodayLogs.filter(l => l.status === 'Present').length;
+      const currentClassesTotal = pastAndTodayLogs.length;
+
+      // GRAND TOTALS (Bulk + Current)
+      const totalClassesHappened = bulkImportTotal + currentClassesTotal;
+      const totalClassesAttended = bulkImportAttended + currentClassesAttended;
+      const currentAttendancePercent = totalClassesHappened === 0 ? 0 : Math.round((totalClassesAttended / totalClassesHappened) * 100);
+
+      // RISK ASSESSMENT
+      let zone: 'safe' | 'warning' | 'danger' = 'safe';
+      if (currentAttendancePercent < sub.targetPercentage) {
+        zone = currentAttendancePercent < sub.targetPercentage - 10 ? 'danger' : 'warning';
       }
+
+      return {
+        ...sub,
+        totalClassesAttended,
+        totalClassesHappened,
+        currentAttendancePercent,
+        zone
+      };
     });
+  }, [subjects, attendanceLogs, schedule, extraClasses, todayStr]);
 
-    const currentPct = totalOccurredHours === 0 ? 0 : (presentHours / totalOccurredHours) * 100;
-    
-    // Future Estimation 
-    // Calculate weekly hours for this subject
-    const weeklyHours = schedule
-      .filter(s => s.subjectId === sub.id)
-      .reduce((acc, s) => acc + getDurationInHours(s.startTime, s.endTime), 0);
-    
-    // Estimate remaining weeks (Simplified: Fixed 14 weeks for demo or calculation based on term dates)
-    const totalSemesterWeeks = 16;
-    // Estimate passed weeks based on totalOccurred / weeklyHours (roughly)
-    const weeksPassed = weeklyHours > 0 ? Math.ceil(totalOccurredHours / weeklyHours) : 0;
-    const remainingWeeks = Math.max(0, totalSemesterWeeks - weeksPassed);
-    const remainingHours = remainingWeeks * weeklyHours;
-
-    // Skip Budget Calculation
-    const targetRate = sub.targetPercentage / 100;
-    const projectedTotalHours = totalOccurredHours + remainingHours;
-    
-    // Max allowable skips (in hours) for the ENTIRE semester context
-    const maxSkipsTotal = Math.floor(presentHours + remainingHours - (targetRate * projectedTotalHours));
-    const safeSkips = Math.max(0, maxSkipsTotal);
-
-    // Recovery Plan
-    // Need >= (Target*Total - Present) / (1 - Target)
-    let recoveryNeeded = 0;
-    if (totalOccurredHours > 0 && currentPct < sub.targetPercentage) {
-       recoveryNeeded = Math.ceil((targetRate * totalOccurredHours - presentHours) / (1 - targetRate));
-    }
-
-    return {
-      ...sub,
-      presentHours,
-      totalOccurredHours,
-      safeSkips, // In hours
-      recoveryNeeded, // In hours
-      currentPct
-    };
-  });
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-neon-purple/20 to-blue-600/20 p-6 rounded-2xl border border-neon-purple/30">
-        <div className="flex items-center gap-3 mb-2">
-          <BrainCircuit className="text-neon-purple" />
-          <h2 className="text-xl font-bold text-white">AI Strategist</h2>
-        </div>
-        <p className="text-sm text-gray-300">
-          Based on weighted hourly attendance, here is your personalized strategy.
-        </p>
+    <div className="space-y-6 pb-24">
+      {/* Header */}
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+          <TrendingUp className="text-neon-purple" size={28} />
+          Attendance Planner
+        </h1>
+        <p className="text-gray-400">Track your attendance progress</p>
       </div>
 
-      <div className="space-y-4">
-        {insights.map(sub => (
+      {/* Overview Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-neon-purple/20 to-neon-cyan/20 p-4 rounded-2xl border border-neon-purple/30 backdrop-blur-md"
+        >
+          <p className="text-xs text-gray-400 font-bold uppercase mb-2">Total Subjects</p>
+          <p className="text-4xl font-bold text-white">{subjects.length}</p>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="bg-gradient-to-br from-success/20 to-neon-cyan/20 p-4 rounded-2xl border border-success/30 backdrop-blur-md"
+        >
+          <p className="text-xs text-gray-400 font-bold uppercase mb-2">On Track</p>
+          <p className="text-4xl font-bold text-success">{insights.filter(s => s.zone === 'safe').length}</p>
+        </motion.div>
+      </div>
+
+      {/* Subject Cards */}
+      <div className="space-y-3">
+        {insights.length === 0 ? (
           <motion.div 
-            key={sub.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-surface p-5 rounded-xl border border-white/5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="p-8 bg-surface/50 rounded-2xl border border-white/5 text-center"
           >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-white text-lg">{sub.name}</h3>
-              <div className={`px-2 py-1 rounded text-xs font-bold ${sub.totalOccurredHours === 0 ? 'bg-white/10 text-gray-400' : (sub.currentPct >= sub.targetPercentage ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger')}`}>
-                {sub.totalOccurredHours === 0 ? 'N/A' : `${Math.round(sub.currentPct)}%`}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              {/* Skip Budget Card */}
-              <div className={`p-3 rounded-lg border ${sub.safeSkips > 0 ? 'bg-surface-light border-white/10' : 'bg-surface-light border-white/5 opacity-50'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <PartyPopper size={14} className="text-neon-cyan" />
-                  <span className="text-xs text-gray-400 font-bold uppercase">Skip Budget</span>
-                </div>
-                <div className="text-2xl font-mono font-bold text-white">
-                  {sub.safeSkips} <span className="text-xs font-sans text-gray-500 font-normal">hrs</span>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1 leading-tight">
-                  Hours you can safely miss and stay above {sub.targetPercentage}%.
-                </p>
-              </div>
-
-              {/* Recovery Card */}
-              {sub.recoveryNeeded > 0 ? (
-                <div className="p-3 rounded-lg bg-danger/10 border border-danger/30">
-                  <div className="flex items-center gap-2 mb-1">
-                    <AlertTriangle size={14} className="text-danger" />
-                    <span className="text-xs text-danger font-bold uppercase">Recovery</span>
-                  </div>
-                  <div className="text-2xl font-mono font-bold text-white">
-                    {sub.recoveryNeeded} <span className="text-xs font-sans text-gray-500 font-normal">hrs</span>
-                  </div>
-                   <p className="text-[10px] text-gray-400 mt-1 leading-tight">
-                    Consecutive hours required to reach safety.
-                  </p>
-                </div>
-              ) : (
-                <div className="p-3 rounded-lg bg-success/10 border border-success/30 flex flex-col justify-center">
-                   <div className="flex items-center gap-2 mb-1">
-                    <ArrowUpCircle size={14} className="text-success" />
-                    <span className="text-xs text-success font-bold uppercase">{sub.totalOccurredHours === 0 ? 'Waiting for Data' : 'Safe Zone'}</span>
-                  </div>
-                  <p className="text-sm text-gray-300 font-medium">{sub.totalOccurredHours === 0 ? 'Log your first class!' : 'You are on track!'}</p>
-                </div>
-              )}
-            </div>
+            <p className="text-gray-400">Add subjects to track your attendance</p>
           </motion.div>
-        ))}
+        ) : (
+          insights.map((sub, idx) => {
+            const progressPercent = Math.min(100, (sub.currentAttendancePercent / sub.targetPercentage) * 100);
+            const zoneColor = sub.zone === 'safe' ? 'from-success to-neon-cyan' : sub.zone === 'warning' ? 'from-amber-500 to-neon-cyan' : 'from-danger to-neon-pink';
+            const zoneBgColor = sub.zone === 'safe' ? 'bg-success/10 border-success/30' : sub.zone === 'warning' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-danger/10 border-danger/30';
+
+            return (
+              <motion.div 
+                key={sub.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                className={`rounded-2xl border p-5 backdrop-blur-md transition-all hover:border-white/20 ${zoneBgColor}`}
+              >
+                {/* Header with Subject Name and Attendance % */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg text-white">{sub.name}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">{sub.type}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-3xl font-bold font-mono ${
+                      sub.zone === 'safe' ? 'text-success' : sub.zone === 'warning' ? 'text-amber-400' : 'text-danger'
+                    }`}>
+                      {sub.currentAttendancePercent}%
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">attendance</p>
+                  </div>
+                </div>
+
+                {/* Classes Info */}
+                <div className="flex items-center gap-4 mb-4 pb-4 border-b border-white/10">
+                  <div>
+                    <p className="text-xs text-gray-400 font-bold">ATTENDED</p>
+                    <p className="text-2xl font-bold text-neon-cyan">{sub.totalClassesAttended}</p>
+                  </div>
+                  <div className="text-gray-600 text-lg">/</div>
+                  <div>
+                    <p className="text-xs text-gray-400 font-bold">TOTAL</p>
+                    <p className="text-2xl font-bold text-white">{sub.totalClassesHappened}</p>
+                  </div>
+                </div>
+
+                {/* Target Progress Bar */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-gray-300">TARGET: {sub.targetPercentage}%</span>
+                    <span className={`text-xs font-bold ${
+                      sub.zone === 'safe' ? 'text-success' : sub.zone === 'warning' ? 'text-amber-400' : 'text-danger'
+                    }`}>
+                      {sub.zone === 'safe' ? '✓ SAFE' : sub.zone === 'warning' ? '⚠ WARNING' : '✕ DANGER'}
+                    </span>
+                  </div>
+                  <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progressPercent}%` }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                      className={`h-full bg-gradient-to-r ${zoneColor} rounded-full`}
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })
+        )}
       </div>
     </div>
   );

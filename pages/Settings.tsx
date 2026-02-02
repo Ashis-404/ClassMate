@@ -70,17 +70,6 @@ export const Settings: React.FC = () => {
     <div className="space-y-8">
       <h2 className="text-2xl font-bold text-white">Settings</h2>
 
-      {/* Profile Card */}
-      <div className="bg-surface p-6 rounded-2xl border border-white/5 flex items-center gap-4">
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neon-purple to-neon-pink flex items-center justify-center text-2xl font-bold text-white">
-          {user?.name.charAt(0)}
-        </div>
-        <div>
-          <h3 className="font-bold text-lg text-white">{user?.name}</h3>
-          <p className="text-gray-500 text-sm">Current Term: {term?.name}</p>
-        </div>
-      </div>
-
       {/* Notifications Section */}
       <div className="space-y-4">
         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Preferences</h3>

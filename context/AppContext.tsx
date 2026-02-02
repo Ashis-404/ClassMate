@@ -22,7 +22,9 @@ const INITIAL_STATE: AppState = {
 interface AppContextType extends AppState {
   firebaseUser: User | null;
   authLoading: boolean;
-  setUser: (name: string, type: 'College' | 'School') => void;
+  firestoreBlocked?: boolean;
+  setUser: (name: string, type: 'College' | 'School', institution?: string) => void;
+  setProfilePicture: (pfp: string | null) => void;
   setTerm: (term: Term) => void;
   addSubject: (subject: Subject) => void;
   removeSubject: (id: string) => void;
@@ -59,6 +61,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Load from Firestore (fallback to LocalStorage)
   const saveTimeoutRef = useRef<any>(null);
+  const [firestoreBlocked, setFirestoreBlocked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,8 +90,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               setState(INITIAL_STATE);
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error('Error fetching remote user data', e);
+          // If the browser or an extension blocks connections to Firestore (ERR_BLOCKED_BY_CLIENT),
+          // surface a helpful developer message and mark the flag so UI can warn the user.
+          setFirestoreBlocked(true);
+          console.warn('Firestore requests may be blocked by a browser extension (adblock/privacy). Try disabling extensions or whitelisting firestore.googleapis.com and related Firebase domains.');
           const stored = localStorage.getItem('attendIQ_data');
           if (stored) {
             try {
@@ -127,8 +134,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [state, isLoaded, firebaseUser]);
   
-  const setUser = (name: string, type: 'College' | 'School') => {
-    setState(prev => ({ ...prev, user: { name, type } }));
+  const setUser = (name: string, type: 'College' | 'School', institution?: string) => {
+    setState(prev => ({ ...prev, user: { ...prev.user, name, type, institution } as any }));
+  };
+
+  const setProfilePicture = (pfp: string | null) => {
+    setState(prev => ({ ...prev, user: prev.user ? { ...prev.user, profilePicture: pfp } : prev.user }));
   };
 
   const setTerm = (term: Term) => {
@@ -204,7 +215,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...state, 
       firebaseUser,
       authLoading,
+      firestoreBlocked,
       setUser, 
+      setProfilePicture,
       setTerm, 
       addSubject, 
       removeSubject, 
