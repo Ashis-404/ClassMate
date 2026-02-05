@@ -1,0 +1,67 @@
+/* 
+  FIRESTORE SECURITY RULES FOR CLASSMATE APP
+  
+  HOW TO APPLY THESE RULES:
+  1. Go to Firebase Console (https://console.firebase.google.com/)
+  2. Select your ClassMate project
+  3. Go to Firestore Database > Rules
+  4. Copy and paste the rules below
+  5. Click "Publish"
+  
+  These rules ensure:
+  - Only authenticated users can access their own data
+  - Users cannot access other users' data
+  - Users cannot modify the data of other users
+  - Deleted users' data cannot be accessed
+*/
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users collection - each user can only access their own document
+    match /users/{uid} {
+      // Allow authenticated user to read/write only their own document
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && request.auth.uid == uid;
+
+      // Nested rules for subcollections (if you add them in future)
+      match /{document=**} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+  }
+}
+
+/*
+  EXPLANATION OF RULES:
+
+  1. Default Deny:
+     - deny all reads/writes to anyone by default for security
+     - only allow specifically whitelisted paths below
+
+  2. User Data Protection:
+     - request.auth != null: User must be logged in with Firebase Auth
+     - request.auth.uid == uid: User can only access documents where uid matches their Firebase UID
+     - This prevents users from accessing other users' data
+
+  WHAT EACH RULE ALLOWS:
+  ✓ Authenticated user can read their own data
+  ✓ Authenticated user can write/update their own data
+  ✓ Cannot access other users' documents
+  ✗ Cannot delete other users' data
+  ✗ Anonymous users cannot access anything
+
+  WHAT HAPPENS ON LOGOUT:
+  - AuthContext sets firebaseUser to null
+  - AppContext clears localStorage
+  - Firestore-stored data remains server-side (safe for next login)
+  - No data loss occurs
+*/
