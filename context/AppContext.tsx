@@ -32,12 +32,15 @@ interface AppContextType extends AppState {
   addSubject: (subject: Subject) => void;
   removeSubject: (id: string) => void;
   updateSubjectPastData: (id: string, attended: number, absent: number) => void;
+  editSubject: (id: string, updates: Partial<Subject>) => void;
   updateSchedule: (sessions: ClassSession[]) => void;
+  editScheduleSession: (id: string, updates: Partial<ClassSession>) => void;
   addExtraClass: (extraClass: ExtraClass) => void;
   markAttendance: (record: AttendanceRecord) => void;
   resetData: () => void;
-  completeOnboarding: () => void;
+  completeOnboarding: () => Promise<void>;
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
+  editUserProfile: (updates: { name?: string; institution?: string }) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -50,6 +53,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  
+  // Track critical operations (like onboarding completion) that need immediate save
+  const criticalSaveRef = useRef<Promise<void> | null>(null);
 
   // Firebase Auth Listener
   useEffect(() => {
@@ -218,12 +224,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Debounce Firestore save - for high-frequency updates, batch them
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
-      // Critical operations (attendance) skip debounce
-      const hasCriticalChanges = state.attendanceLogs.length > 0;
-      const delay = hasCriticalChanges ? 100 : 1000;
+      // CRITICAL operations: onboarding completion
+      // These MUST be saved immediately without debounce
+      const hasCriticalChanges = state.isOnboarded === true;
+      const delay = hasCriticalChanges ? 10 : 1000;
 
       saveTimeoutRef.current = setTimeout(() => {
-        performSave(state);
+        const savePromise = performSave(state);
+        if (hasCriticalChanges) {
+          // Store the promise so other code can wait for it
+          criticalSaveRef.current = savePromise;
+        }
       }, delay);
     }
 
@@ -284,8 +295,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
   };
 
+  const editSubject = (id: string, updates: Partial<Subject>) => {
+    setState(prev => ({
+      ...prev,
+      subjects: prev.subjects.map(s => s.id === id ? { ...s, ...updates } : s)
+    }));
+  };
+
   const updateSchedule = (sessions: ClassSession[]) => {
     setState(prev => ({ ...prev, schedule: sessions }));
+  };
+
+  const editScheduleSession = (id: string, updates: Partial<ClassSession>) => {
+    setState(prev => ({
+      ...prev,
+      schedule: prev.schedule.map(s => s.id === id ? { ...s, ...updates } : s)
+    }));
   };
 
   const addExtraClass = (extraClass: ExtraClass) => {
@@ -308,9 +333,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
-  const completeOnboarding = () => {
+  const completeOnboarding = async () => {
+    // First, update state
     setState(prev => ({ ...prev, isOnboarded: true }));
-  }
+    
+    // Now wait for the critical save to complete
+    // We need to wait for a short time to allow React to process the state change
+    // and trigger the useEffect that sets criticalSaveRef
+    await new Promise(resolve => setTimeout(resolve, 20));
+    
+    // Keep checking for the critical save promise to be set
+    let attempts = 0;
+    const maxAttempts = 100; // 100 * 50ms = 5 seconds max wait
+    
+    while (criticalSaveRef.current === null && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      attempts++;
+    }
+    
+    if (criticalSaveRef.current) {
+      try {
+        await criticalSaveRef.current;
+        console.log('✓ Onboarding completion saved to Firestore');
+      } catch (error) {
+        console.error('✗ Failed to save onboarding completion, but data is safe in localStorage');
+        // Don't throw - data is safe in localStorage even if Firestore fails
+      }
+    } else {
+      console.warn('⚠ Onboarding save timed out, but data is safe in localStorage');
+    }
+  };
 
   const resetData = () => {
     // This will be handled by the auth listener on signout
@@ -321,6 +373,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setState(prev => ({
       ...prev,
       notificationSettings: { ...prev.notificationSettings, ...settings }
+    }));
+  };
+
+  const editUserProfile = (updates: { name?: string; institution?: string }) => {
+    setState(prev => ({
+      ...prev,
+      user: prev.user ? { ...prev.user, ...updates } : prev.user
     }));
   };
 
@@ -343,12 +402,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addSubject, 
       removeSubject, 
       updateSubjectPastData,
-      updateSchedule, 
+      editSubject,
+      updateSchedule,
+      editScheduleSession,
       addExtraClass,
       markAttendance, 
       resetData, 
       completeOnboarding,
-      updateNotificationSettings
+      updateNotificationSettings,
+      editUserProfile
     }}>
       {children}
     </AppContext.Provider>

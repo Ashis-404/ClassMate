@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { ArrowLeft, Upload, Trash2, Calendar, BookOpen, Zap, Camera, X } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Calendar, BookOpen, Zap, Camera, X, Edit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SubjectType } from '../types';
 
@@ -14,11 +14,14 @@ const getDurationInHours = (start: string, end: string) => {
 };
 
 export const Profile: React.FC = () => {
-  const { user, term, notificationSettings, resetData, subjects, attendanceLogs, schedule, extraClasses, firebaseUser, setProfilePicture } = useApp();
+  const { user, term, notificationSettings, resetData, subjects, attendanceLogs, schedule, extraClasses, firebaseUser, setProfilePicture, editUserProfile } = useApp();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pfpData, setPfpData] = useState<string | null>(user?.profilePicture ?? null);
   const [showPFPModal, setShowPFPModal] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editName, setEditName] = useState(user?.name || '');
+  const [editInstitution, setEditInstitution] = useState(user?.institution || '');
 
   // Calculate class statistics based on hours (same as Dashboard)
   const stats = useMemo(() => {
@@ -90,6 +93,16 @@ export const Profile: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleSaveProfileEdits = () => {
+    if (editName.trim()) {
+      editUserProfile({
+        name: editName.trim(),
+        institution: editInstitution.trim()
+      });
+      setShowEditProfile(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex items-center gap-4">
@@ -156,8 +169,18 @@ export const Profile: React.FC = () => {
         <div>
           <div className="text-xs text-gray-400 uppercase font-bold tracking-wider">Current Term</div>
           <div className="mt-1 font-medium text-white">{term?.name || 'Not set'}</div>
-          {term && <div className="text-xs text-gray-500 mt-1">{term.startDate} — {term.endDate}</div>}
         </div>
+
+        <button 
+          onClick={() => {
+            setEditName(user?.name || '');
+            setEditInstitution(user?.institution || '');
+            setShowEditProfile(true);
+          }}
+          className="w-full mt-6 bg-gradient-to-r from-neon-purple to-neon-pink p-3 rounded-xl text-white font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+        >
+          <Edit2 size={16} /> Edit Profile
+        </button>
       </motion.div>
 
       {/* Class Statistics */}
@@ -332,6 +355,77 @@ export const Profile: React.FC = () => {
                   >
                     Cancel
                   </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+
+        {/* Edit Profile Modal */}
+        {showEditProfile && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowEditProfile(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <div className="bg-surface border border-white/10 rounded-2xl p-6 shadow-2xl shadow-neon-purple/30 w-full max-w-sm">
+                <button
+                  onClick={() => setShowEditProfile(false)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+
+                <div className="mb-6 pr-8">
+                  <h3 className="text-xl font-bold text-white mb-1">Edit Profile</h3>
+                  <p className="text-xs text-gray-400">Update your name and institution</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-400 uppercase font-bold mb-2 block">Name</label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full bg-surface-light border border-white/10 rounded-lg p-3 text-white outline-none focus:border-neon-purple transition-colors"
+                      placeholder="Your name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-gray-400 uppercase font-bold mb-2 block">Institution</label>
+                    <input
+                      type="text"
+                      value={editInstitution}
+                      onChange={(e) => setEditInstitution(e.target.value)}
+                      className="w-full bg-surface-light border border-white/10 rounded-lg p-3 text-white outline-none focus:border-neon-purple transition-colors"
+                      placeholder="College or School name"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={() => setShowEditProfile(false)}
+                      className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 py-2 rounded-lg transition-all font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveProfileEdits}
+                      className="flex-1 bg-gradient-to-r from-neon-purple to-neon-pink text-white py-2 rounded-lg hover:opacity-90 transition-opacity font-medium"
+                    >
+                      Save Changes
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>

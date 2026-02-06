@@ -244,7 +244,7 @@ export const Dashboard: React.FC = () => {
       <div className="flex justify-between items-end relative z-10">
         <div>
           <h1 className="text-2xl font-bold text-white">Hello, {user?.name}</h1>
-          <p className="text-gray-400 text-sm">Your Liquid Status</p>
+          <p className="text-gray-400 text-sm">Let's Visualize Your Attendance...</p>
         </div>
       </div>
 

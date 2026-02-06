@@ -86,8 +86,14 @@ export const Onboarding: React.FC = () => {
         }))
       );
       updateSchedule(sessions);
-      completeOnboarding();
-      navigate('/dashboard');
+      // Wait for onboarding completion to be saved to Firestore before navigating
+      completeOnboarding().then(() => {
+        navigate('/dashboard');
+      }).catch((error) => {
+        console.error('Error completing onboarding:', error);
+        // Navigate anyway since data is safe in localStorage
+        navigate('/dashboard');
+      });
     }
   };
 
