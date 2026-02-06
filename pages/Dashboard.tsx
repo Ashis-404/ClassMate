@@ -252,11 +252,11 @@ export const Dashboard: React.FC = () => {
       <div className="relative h-72 w-full flex justify-center items-center -mt-4 mb-6">
         
         {/* Animated Connectors */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" overflow="visible">
+        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 100 100" preserveAspectRatio="none" overflow="visible">
           <motion.path 
-            d="M 50% 30% L 20% 70%" 
+            d="M 50 30 L 20 70" 
             stroke="url(#grad1)" 
-            strokeWidth="2" 
+            strokeWidth="1" 
             fill="none" 
             className="opacity-30"
             initial={{ pathLength: 0 }}
@@ -264,9 +264,9 @@ export const Dashboard: React.FC = () => {
             transition={{ duration: 1.5, ease: "easeInOut" }}
           />
           <motion.path 
-            d="M 50% 30% L 80% 70%" 
+            d="M 50 30 L 80 70" 
             stroke="url(#grad1)" 
-            strokeWidth="2" 
+            strokeWidth="1" 
             fill="none" 
             className="opacity-30"
             initial={{ pathLength: 0 }}

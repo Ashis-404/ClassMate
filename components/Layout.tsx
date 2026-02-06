@@ -6,11 +6,11 @@ import { useApp } from '../context/AppContext';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
-  const { resetData, firebaseUser } = useApp();
+  const { signOut, firebaseUser } = useApp();
   const [clickedIcon, setClickedIcon] = useState<string | null>(null);
 
   const handleLogout = () => {
-    resetData(); // This will trigger sign-out and state reset from the context
+    signOut();
   };
 
   const navItems = [

@@ -6,6 +6,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
   serverTimestamp,
   enableIndexedDbPersistence,
 } from "firebase/firestore";
@@ -126,6 +127,18 @@ export const saveUserData = async (
     }
 
     console.error('✗ saveUserData error (final):', error);
+    throw error;
+  }
+};
+
+// Delete all user data from Firestore (destructive - used for "Reset App")
+export const deleteUserData = async (uid: string): Promise<void> => {
+  try {
+    const ref = doc(db, 'users', uid);
+    await deleteDoc(ref);
+    console.log('✓ User data deleted from Firestore');
+  } catch (error) {
+    console.error('✗ deleteUserData error:', error);
     throw error;
   }
 };

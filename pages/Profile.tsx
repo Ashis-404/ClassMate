@@ -14,7 +14,7 @@ const getDurationInHours = (start: string, end: string) => {
 };
 
 export const Profile: React.FC = () => {
-  const { user, term, notificationSettings, resetData, subjects, attendanceLogs, schedule, extraClasses, firebaseUser, setProfilePicture, editUserProfile } = useApp();
+  const { user, term, notificationSettings, signOut, subjects, attendanceLogs, schedule, extraClasses, firebaseUser, setProfilePicture, editUserProfile } = useApp();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pfpData, setPfpData] = useState<string | null>(user?.profilePicture ?? null);
@@ -268,7 +268,7 @@ export const Profile: React.FC = () => {
         transition={{ delay: 0.4 }}
       >
         <button 
-          onClick={() => resetData()} 
+          onClick={() => signOut()} 
           className="w-full bg-gradient-to-r from-danger/80 to-danger hover:from-danger hover:to-danger/80 text-white py-3 rounded-lg font-bold shadow-lg shadow-danger/20 transition-all"
         >
           Sign Out

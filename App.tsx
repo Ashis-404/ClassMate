@@ -33,7 +33,23 @@ const ProtectedLayout: React.FC = () => {
   );
 };
 
-// A component to handle routes for unauthenticated users
+// Guard for the onboarding route: requires auth, redirects if already onboarded
+const OnboardingGuard: React.FC = () => {
+  const { firebaseUser, isOnboarded } = useApp();
+
+  if (!firebaseUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (isOnboarded) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Onboarding />;
+};
+
+// A component to handle routes for unauthenticated users.
+// Redirects authenticated users to the appropriate page.
 const PublicRoutes: React.FC = () => {
   const { firebaseUser, isOnboarded } = useApp();
   
@@ -45,17 +61,27 @@ const PublicRoutes: React.FC = () => {
   return <Outlet />;
 }
 
+// Landing page: auth-aware redirect
+const LandingRoute: React.FC = () => {
+  const { firebaseUser, isOnboarded } = useApp();
+
+  if (firebaseUser) {
+    return <Navigate to={isOnboarded ? '/dashboard' : '/onboarding'} replace />;
+  }
+
+  return <Landing />;
+};
+
 const AppRoutes: React.FC = () => {
   const { authLoading } = useApp();
 
   if (authLoading) {
-    // This can be a moreye sophisticated loading spinner
     return <div className="min-h-screen bg-void" />;
   }
 
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<LandingRoute />} />
       
       {/* Public routes that redirect if logged in */}
       <Route element={<PublicRoutes />}>
@@ -63,8 +89,8 @@ const AppRoutes: React.FC = () => {
         <Route path="/signup" element={<SignUp />} />
       </Route>
       
-      {/* Onboarding is a special case, needs auth but not onboarding completion */}
-      <Route path="/onboarding" element={<Onboarding />} />
+      {/* Onboarding: requires auth, redirects to dashboard if already onboarded */}
+      <Route path="/onboarding" element={<OnboardingGuard />} />
 
       {/* Protected routes requiring auth and onboarding */}
       <Route element={<ProtectedLayout />}>

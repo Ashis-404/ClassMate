@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, fetchUserData, saveUserData, getLastUpdateTimestamp } from '../firebase';
+import { auth, fetchUserData, saveUserData, getLastUpdateTimestamp, deleteUserData } from '../firebase';
 import { AppState, Subject, ClassSession, AttendanceRecord, Term, DayOfWeek, NotificationSettings, ExtraClass } from '../types';
 import { validateAppState, sanitizeAppState } from '../services/validation';
 
@@ -37,6 +37,7 @@ interface AppContextType extends AppState {
   editScheduleSession: (id: string, updates: Partial<ClassSession>) => void;
   addExtraClass: (extraClass: ExtraClass) => void;
   markAttendance: (record: AttendanceRecord) => void;
+  signOut: () => void;
   resetData: () => void;
   completeOnboarding: () => Promise<void>;
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
@@ -57,17 +58,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Track critical operations (like onboarding completion) that need immediate save
   const criticalSaveRef = useRef<Promise<void> | null>(null);
 
-  // Firebase Auth Listener
+  // Track whether user is deliberately signing out - skip Firestore saves during signout
+  const isSigningOutRef = useRef(false);
+
+  // Track current firebase user UID via ref to avoid stale closures in the auth listener
+  const firebaseUserUidRef = useRef<string | null>(null);
+
+  // Firebase Auth Listener — runs ONCE (no deps), uses ref instead of state for comparisons
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const previousUid = firebaseUserUidRef.current;
+      const newUid = user?.uid ?? null;
+
+      firebaseUserUidRef.current = newUid;
       setFirebaseUser(user);
       setAuthLoading(false);
+
       if (!user) {
-        // When user logs out, reset everything
+        // User logged out: clear local state but do NOT touch Firestore
         localStorage.removeItem('attendIQ_data');
         setState(INITIAL_STATE);
         setLastSyncTime(null);
         setSyncError(null);
+        isSigningOutRef.current = false;
+      }
+
+      // When user changes (login, logout, or switch account),
+      // reset isLoaded so the save effect won't fire until fresh data is loaded.
+      if (previousUid !== newUid) {
+        setIsLoaded(false);
       }
     });
     return () => unsubscribe();
@@ -217,7 +236,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Save to LocalStorage immediately and Firestore with debounce
   useEffect(() => {
-    if (isLoaded && firebaseUser) {
+    if (isLoaded && firebaseUser && !isSigningOutRef.current) {
+      // SAFETY GUARD: Never overwrite Firestore with empty/initial state.
+      // This prevents the race condition where state is still INITIAL_STATE
+      // right after login but before Firestore data has been loaded.
+      const isEmptyState = !state.isOnboarded && state.subjects.length === 0;
+      if (isEmptyState) {
+        console.warn('⚠ Skipping save: state appears to be INITIAL_STATE, refusing to overwrite Firestore');
+        return;
+      }
+
       // Always save immediately to localStorage for data safety
       localStorage.setItem('attendIQ_data', JSON.stringify(state));
 
@@ -364,8 +392,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const resetData = () => {
-    // This will be handled by the auth listener on signout
+  // Sign out only — preserves all data in Firestore, just ends the session
+  const signOut = () => {
+    // Cancel any pending Firestore saves to prevent overwriting remote data with empty state
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    isSigningOutRef.current = true;
+    // Auth listener will handle clearing local state
+    auth.signOut();
+  };
+
+  // Destructive reset — wipes Firestore data and signs out
+  const resetData = async () => {
+    // Cancel any pending Firestore saves
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    isSigningOutRef.current = true;
+
+    // Wipe Firestore data before signing out (need uid while still authenticated)
+    if (firebaseUser) {
+      try {
+        await deleteUserData(firebaseUser.uid);
+        console.log('✓ Firestore data wiped for reset');
+      } catch (error) {
+        console.error('✗ Failed to wipe Firestore data during reset:', error);
+        // Continue with sign-out even if Firestore delete fails
+      }
+    }
+
+    // Clear localStorage
+    localStorage.removeItem('attendIQ_data');
+
+    // Auth listener will handle clearing local state
     auth.signOut();
   };
 
@@ -407,6 +469,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       editScheduleSession,
       addExtraClass,
       markAttendance, 
+      signOut,
       resetData, 
       completeOnboarding,
       updateNotificationSettings,
