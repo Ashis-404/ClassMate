@@ -156,7 +156,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Improved save logic with validation, conflict resolution, and retry
   const performSave = useCallback(
     async (dataToSave: AppState, isUrgent: boolean = false) => {
-      if (!firebaseUser) return;
+      // Prefer the context firebaseUser, but fall back to auth.currentUser to avoid
+      // race conditions where the closure's firebaseUser is stale.
+      const activeUser = firebaseUser ?? auth.currentUser as User | null;
+      if (!activeUser) {
+        console.warn('⚠ performSave skipped: no authenticated user available');
+        return;
+      }
+      const uid = activeUser.uid;
+      console.log(`⤓ performSave: saving data for uid=${uid}`);
 
       // Validate data before saving
       const validation = validateAppState(dataToSave);
@@ -181,10 +189,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       // Conflict resolution: check if Firestore has newer data
       if (lastSyncTime !== null) {
-        const remoteTimestamp = await getLastUpdateTimestamp(firebaseUser.uid);
+        const remoteTimestamp = await getLastUpdateTimestamp(uid);
         if (remoteTimestamp && remoteTimestamp > lastSyncTime) {
           console.warn('⚠ Conflict detected: Firestore has newer data. Fetching fresh data...');
-          const freshData = await fetchUserData(firebaseUser.uid);
+          const freshData = await fetchUserData(uid);
           if (freshData) {
             setState(freshData);
             localStorage.setItem('attendIQ_data', JSON.stringify(freshData));
@@ -201,7 +209,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Save to Firestore
       setIsSyncing(true);
       try {
-        await saveUserData(firebaseUser.uid, dataToSave);
+        await saveUserData(uid, dataToSave);
         setIsSyncing(false);
         setSyncError(null);
         console.log('✓ Data synced to Firestore');
@@ -362,6 +370,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } else {
       console.warn('⚠ Onboarding save timed out, but data is safe in localStorage');
     }
+    // Clear the temporary signup flag so subsequent logins don't force onboarding
+    try { localStorage.removeItem('justSignedUp'); } catch (e) {}
   };
 
   const resetData = () => {

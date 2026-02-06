@@ -16,14 +16,10 @@ import { SignUp } from './pages/SignUp';
 
 // A layout for authenticated users who have completed onboarding
 const ProtectedLayout: React.FC = () => {
-  const { firebaseUser, isOnboarded } = useApp();
+  const { firebaseUser } = useApp();
 
   if (!firebaseUser) {
     return <Navigate to="/login" replace />;
-  }
-
-  if (!isOnboarded) {
-    return <Navigate to="/onboarding" replace />;
   }
 
   return (
@@ -35,10 +31,13 @@ const ProtectedLayout: React.FC = () => {
 
 // A component to handle routes for unauthenticated users
 const PublicRoutes: React.FC = () => {
-  const { firebaseUser, isOnboarded } = useApp();
-  
+  const { firebaseUser } = useApp();
+
   if (firebaseUser) {
-    const path = isOnboarded ? '/dashboard' : '/onboarding';
+    // If the user just signed up in this session, show onboarding.
+    // Otherwise always go to dashboard on login.
+    const justSignedUp = typeof window !== 'undefined' && localStorage.getItem('justSignedUp');
+    const path = justSignedUp ? '/onboarding' : '/dashboard';
     return <Navigate to={path} replace />;
   }
 
@@ -46,7 +45,7 @@ const PublicRoutes: React.FC = () => {
 }
 
 const AppRoutes: React.FC = () => {
-  const { authLoading } = useApp();
+  const { authLoading, firebaseUser } = useApp();
 
   if (authLoading) {
     // This can be a moreye sophisticated loading spinner
@@ -64,7 +63,7 @@ const AppRoutes: React.FC = () => {
       </Route>
       
       {/* Onboarding is a special case, needs auth but not onboarding completion */}
-      <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/onboarding" element={firebaseUser ? <Onboarding /> : <Navigate to="/login" replace />} />
 
       {/* Protected routes requiring auth and onboarding */}
       <Route element={<ProtectedLayout />}>

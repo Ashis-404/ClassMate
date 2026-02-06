@@ -19,7 +19,9 @@ const SignUp: React.FC = () => {
     setError(null);
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      navigate('/Onboarding');
+      // Mark that this session came from sign up so onboarding is shown
+      try { localStorage.setItem('justSignedUp', '1'); } catch (e) {}
+      navigate('/onboarding');
     } catch (error: any) {
       setError(error.message);
     }
@@ -29,7 +31,8 @@ const SignUp: React.FC = () => {
     setError(null);
     try {
       await signInWithGoogle();
-      navigate('/Onboarding');
+      try { localStorage.setItem('justSignedUp', '1'); } catch (e) {}
+      navigate('/onboarding');
     } catch (error: any) {
       setError(error.message || 'Google sign-in failed');
     }

@@ -19,7 +19,7 @@ const Login: React.FC = () => {
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate('/Onboarding');
+      navigate('/dashboard');
     } catch (error: any) {
       setError(error.message);
     }
@@ -29,7 +29,7 @@ const Login: React.FC = () => {
     setError(null);
     try {
       await signInWithGoogle();
-      navigate('/Onboarding');
+      navigate('/dashboard');
     } catch (error: any) {
       setError(error.message || 'Google sign-in failed');
     }
