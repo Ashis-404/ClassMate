@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, signInWithGoogle } from '../firebase';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
 import FloatingLines from '../components/FloatingLines';
@@ -12,14 +12,15 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate('/Onboarding');
+      // Don't navigate — onAuthStateChanged will fire, AppProvider will load
+      // Firestore data, and route guards (PublicRoutes) will redirect to
+      // /dashboard or /onboarding based on isOnboarded status.
     } catch (error: any) {
       setError(error.message);
     }
@@ -29,7 +30,7 @@ const Login: React.FC = () => {
     setError(null);
     try {
       await signInWithGoogle();
-      navigate('/Onboarding');
+      // Same as above — let route guards handle navigation after auth state updates.
     } catch (error: any) {
       setError(error.message || 'Google sign-in failed');
     }

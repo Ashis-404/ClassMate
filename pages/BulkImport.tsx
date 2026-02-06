@@ -32,7 +32,7 @@ export const BulkImport: React.FC = () => {
   };
 
   const handleSave = () => {
-    Object.entries(data).forEach(([id, counts]) => {
+    (Object.entries(data) as [string, { attended: number; absent: number }][]).forEach(([id, counts]) => {
       updateSubjectPastData(id, counts.attended, counts.absent);
     });
     navigate('/dashboard');

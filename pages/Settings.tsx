@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export const Settings: React.FC = () => {
   const context = useApp();
-  const { user, term, resetData, notificationSettings, updateNotificationSettings, subjects, schedule, editSubject, editScheduleSession } = context;
+  const { user, term, resetData, signOut, notificationSettings, updateNotificationSettings, subjects, schedule, editSubject, editScheduleSession } = context;
   const navigate = useNavigate();
   const [showEditSubject, setShowEditSubject] = useState(false);
   const [showEditSchedule, setShowEditSchedule] = useState(false);
@@ -208,7 +208,7 @@ export const Settings: React.FC = () => {
          <div className="space-y-3">
           <button onClick={() => {
             if (confirm("Are you sure you want to sign out?")) {
-              resetData();
+              signOut();
             }
           }} className="w-full flex items-center gap-4 p-4 bg-surface rounded-xl border border-white/5 text-left hover:bg-danger/10 group transition-colors">
             <div className="p-2 bg-danger/10 rounded-lg text-danger group-hover:bg-danger group-hover:text-white transition-colors"><LogOut size={20}/></div>
