@@ -101,7 +101,7 @@ const LiquidBubble: React.FC<LiquidBubbleProps> = ({ label, subLabel, value, tar
 };
 
 export const Dashboard: React.FC = () => {
-  const { user, subjects, schedule, extraClasses, attendanceLogs, markAttendance, addExtraClass, term } = useApp();
+  const { user, subjects, schedule, extraClasses, attendanceLogs, markAttendance, removeAttendanceRecord, addExtraClass, term } = useApp();
   const [isManageOpen, setIsManageOpen] = useState(false);
   
   // Extra Class Form State
@@ -134,14 +134,21 @@ export const Dashboard: React.FC = () => {
 
   const stats = useMemo(() => {
     return subjects.map(sub => {
+      // Estimate average class duration from schedule (default 1 hour if no schedule)
+      const scheduledSessions = schedule.filter(s => s.subjectId === sub.id);
+      const avgDuration = scheduledSessions.length > 0
+        ? scheduledSessions.reduce((sum, s) => sum + getDurationInHours(s.startTime, s.endTime), 0) / scheduledSessions.length
+        : 1;
+
+      // Convert past bulk-imported data from class counts to hours
+      let presentHours = (sub.pastAttendedClasses || 0) * avgDuration;
+      let totalHours = ((sub.pastAttendedClasses || 0) + (sub.pastAbsentClasses || 0)) * avgDuration;
+
       const subjectLogs = attendanceLogs.filter(l => {
          const session = schedule.find(s => s.id === l.sessionId);
          const extraSession = extraClasses.find(e => e.id === l.sessionId);
          return (session || extraSession)?.subjectId === sub.id;
       });
-
-      let presentHours = sub.pastAttendedClasses || 0;
-      let totalHours = (sub.pastAttendedClasses || 0) + (sub.pastAbsentClasses || 0);
 
       subjectLogs.forEach(log => {
         const session = schedule.find(s => s.id === log.sessionId);
@@ -156,7 +163,7 @@ export const Dashboard: React.FC = () => {
       });
       
       const percentage = totalHours === 0 ? 0 : Math.round((presentHours / totalHours) * 100);
-      return { ...sub, present: presentHours, total: totalHours, percentage };
+      return { ...sub, present: Number(presentHours.toFixed(2)), total: Number(totalHours.toFixed(2)), percentage };
     });
   }, [subjects, attendanceLogs, schedule, extraClasses]);
 
@@ -179,45 +186,63 @@ export const Dashboard: React.FC = () => {
   const minCriteria = term?.minAttendanceCriteria || 75;
 
   const handleAddExtraClass = () => {
-    if(!newExtraSubject) return;
-    
-    // Check for overlaps with existing extra classes and non-cancelled regular classes
-    const conflictingClasses = todaysClasses.filter(session => {
-      const log = attendanceLogs.find(l => l.date === dateStr && l.sessionId === session.id);
-      const isCancelled = log?.status === 'Cancelled';
+    try {
+      if(!newExtraSubject) {
+        setActionMessage('Please select a subject');
+        return;
+      }
       
-      // Skip if cancelled
-      if (isCancelled) return false;
+      console.log('📚 Adding extra class:', { newExtraSubject, newExtraStart, newExtraEnd, dateStr });
       
-      // Check overlap
-      const newStart = parseInt(newExtraStart.split(':')[0]) * 60 + parseInt(newExtraStart.split(':')[1]);
-      const newEnd = parseInt(newExtraEnd.split(':')[0]) * 60 + parseInt(newExtraEnd.split(':')[1]);
-      const sessionStart = parseInt(session.startTime.split(':')[0]) * 60 + parseInt(session.startTime.split(':')[1]);
-      const sessionEnd = parseInt(session.endTime.split(':')[0]) * 60 + parseInt(session.endTime.split(':')[1]);
+      // Check for overlaps with existing extra classes and non-cancelled regular classes
+      const conflictingClasses = todaysClasses.filter(session => {
+        const log = attendanceLogs.find(l => l.date === dateStr && l.sessionId === session.id);
+        const isCancelled = log?.status === 'Cancelled';
+        
+        // Skip if cancelled
+        if (isCancelled) return false;
+        
+        // Check overlap
+        const newStart = parseInt(newExtraStart.split(':')[0]) * 60 + parseInt(newExtraStart.split(':')[1]);
+        const newEnd = parseInt(newExtraEnd.split(':')[0]) * 60 + parseInt(newExtraEnd.split(':')[1]);
+        const sessionStart = parseInt(session.startTime.split(':')[0]) * 60 + parseInt(session.startTime.split(':')[1]);
+        const sessionEnd = parseInt(session.endTime.split(':')[0]) * 60 + parseInt(session.endTime.split(':')[1]);
+        
+        return (newStart < sessionEnd) && (newEnd > sessionStart);
+      });
       
-      return (newStart < sessionEnd) && (newEnd > sessionStart);
-    });
-    
-    if (conflictingClasses.length > 0) {
-      setActionMessage('Time slot conflicts with existing class');
-      setTimeout(() => setActionMessage(null), 1800);
-      return;
+      if (conflictingClasses.length > 0) {
+        const conflictMsg = conflictingClasses.map(c => subjects.find(s => s.id === c.subjectId)?.name || 'Unknown').join(', ');
+        setActionMessage(`Time slot conflicts with: ${conflictMsg}`);
+        setTimeout(() => setActionMessage(null), 2500);
+        console.warn('⚠️ Time conflict detected:', conflictingClasses);
+        return;
+      }
+      
+      // Add the extra class
+      const extraClassData = {
+        id: uuidv4(),
+        subjectId: newExtraSubject,
+        date: dateStr,
+        startTime: newExtraStart,
+        endTime: newExtraEnd
+      };
+      
+      console.log('✅ Extra class data:', extraClassData);
+      addExtraClass(extraClassData);
+      
+      // Reset form
+      setNewExtraSubject('');
+      setNewExtraStart('09:00');
+      setNewExtraEnd('10:00');
+      setShowExtraSuccess(true);
+      setActionMessage('✓ Extra class added successfully');
+      setTimeout(() => { setShowExtraSuccess(false); setActionMessage(null); }, 2000);
+    } catch (error) {
+      console.error('❌ Error adding extra class:', error);
+      setActionMessage('Error: Failed to add class');
+      setTimeout(() => setActionMessage(null), 2000);
     }
-    
-    addExtraClass({
-      id: uuidv4(),
-      subjectId: newExtraSubject,
-      date: dateStr,
-      startTime: newExtraStart,
-      endTime: newExtraEnd
-    });
-    setNewExtraSubject('');
-    // reset time fields to sensible defaults
-    setNewExtraStart('09:00');
-    setNewExtraEnd('10:00');
-    setShowExtraSuccess(true);
-    setActionMessage('Extra class added');
-    setTimeout(() => { setShowExtraSuccess(false); setActionMessage(null); }, 1800);
   };
 
   return (
@@ -470,10 +495,15 @@ export const Dashboard: React.FC = () => {
                              </div>
                               <button 
                                 onClick={() => {
-                                  const newStatus = isCancelled ? 'Absent' : 'Cancelled';
-                                  markAttendance({ id: `${dateStr}-${session.id}`, date: dateStr, sessionId: session.id, status: newStatus });
-                                  // show message and auto-clear
-                                  setActionMessage(isCancelled ? 'Class restored' : 'Class cancelled');
+                                  if (isCancelled) {
+                                    // Restore: remove the attendance record entirely so class counts again
+                                    removeAttendanceRecord(dateStr, session.id);
+                                    setActionMessage('Class restored');
+                                  } else {
+                                    // Cancel: mark as Cancelled so it doesn't count toward attendance
+                                    markAttendance({ id: `${dateStr}-${session.id}`, date: dateStr, sessionId: session.id, status: 'Cancelled' });
+                                    setActionMessage('Class cancelled');
+                                  }
                                   setTimeout(() => setActionMessage(null), 1800);
                                 }}
                                 className={`px-3 py-1.5 rounded text-xs font-bold border transition-colors flex items-center gap-1 ${isCancelled ? 'bg-success/10 text-success border-success/30' : 'bg-danger/10 text-danger border-danger/30'}`}

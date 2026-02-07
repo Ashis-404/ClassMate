@@ -37,6 +37,7 @@ interface AppContextType extends AppState {
   editScheduleSession: (id: string, updates: Partial<ClassSession>) => void;
   addExtraClass: (extraClass: ExtraClass) => void;
   markAttendance: (record: AttendanceRecord) => void;
+  removeAttendanceRecord: (date: string, sessionId: string) => void;
   signOut: () => void;
   resetData: () => void;
   completeOnboarding: () => Promise<void>;
@@ -198,26 +199,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setSyncError('Local storage save failed');
       }
 
-      // Conflict resolution: check if Firestore has newer data
-      if (lastSyncTime !== null) {
-        const remoteTimestamp = await getLastUpdateTimestamp(firebaseUser.uid);
-        if (remoteTimestamp && remoteTimestamp > lastSyncTime) {
-          console.warn('⚠ Conflict detected: Firestore has newer data. Fetching fresh data...');
-          const freshData = await fetchUserData(firebaseUser.uid);
-          if (freshData) {
-            setState(freshData);
-            localStorage.setItem('attendIQ_data', JSON.stringify(freshData));
-            if (remoteTimestamp) {
-              setLastSyncTime(remoteTimestamp);
-              lastLocalUpdateRef.current = remoteTimestamp;
-            }
-            setSyncError('Synced with server (newer data detected)');
-            return;
-          }
-        }
-      }
-
-      // Save to Firestore
+      // Save to Firestore - user's local changes are the source of truth
+      // The user's most recent action should always be saved, regardless of server state
       setIsSyncing(true);
       try {
         await saveUserData(firebaseUser.uid, dataToSave);
@@ -231,7 +214,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setSyncError('Sync failed, saving locally. Will retry.');
       }
     },
-    [firebaseUser, lastSyncTime]
+    [firebaseUser]
   );
 
   // Save to LocalStorage immediately and Firestore with debounce
@@ -361,6 +344,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
+  const removeAttendanceRecord = (date: string, sessionId: string) => {
+    setState(prev => ({
+      ...prev,
+      attendanceLogs: prev.attendanceLogs.filter(
+        l => !(l.date === date && l.sessionId === sessionId)
+      )
+    }));
+  };
+
   const completeOnboarding = async () => {
     // First, update state
     setState(prev => ({ ...prev, isOnboarded: true }));
@@ -468,7 +460,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       updateSchedule,
       editScheduleSession,
       addExtraClass,
-      markAttendance, 
+      markAttendance,
+      removeAttendanceRecord,
       signOut,
       resetData, 
       completeOnboarding,

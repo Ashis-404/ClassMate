@@ -30,14 +30,21 @@ export const Profile: React.FC = () => {
     let overallPresentHours = 0, overallTotalHours = 0;
 
     subjects.forEach(sub => {
+      // Estimate average class duration from schedule (default 1 hour if no schedule)
+      const scheduledSessions = schedule.filter(s => s.subjectId === sub.id);
+      const avgDuration = scheduledSessions.length > 0
+        ? scheduledSessions.reduce((sum, s) => sum + getDurationInHours(s.startTime, s.endTime), 0) / scheduledSessions.length
+        : 1;
+
+      // Convert past bulk-imported data from class counts to hours
+      let subPresentHours = (sub.pastAttendedClasses || 0) * avgDuration;
+      let subTotalHours = ((sub.pastAttendedClasses || 0) + (sub.pastAbsentClasses || 0)) * avgDuration;
+
       const subLogs = attendanceLogs.filter(l => {
         const session = schedule.find(s => s.id === l.sessionId);
         const extra = extraClasses.find(e => e.id === l.sessionId);
         return (session || extra)?.subjectId === sub.id;
       });
-
-      let subPresentHours = sub.pastAttendedClasses || 0;
-      let subTotalHours = (sub.pastAttendedClasses || 0) + (sub.pastAbsentClasses || 0);
 
       subLogs.forEach(log => {
         const session = schedule.find(s => s.id === log.sessionId);
